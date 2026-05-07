@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nexus Tactical Elite v9.5</title>
+    <script src="https://unpkg.com/konva@9.3.1/konva.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        :root { --neon: #00ffff; --bg: #05070a; --glass: rgba(15, 23, 42, 0.6); --red: #ff4d4d; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg); font-family: 'Inter', sans-serif; overflow: hidden; touch-action: none; color: white; }
+        #canvas-container { width: 100%; height: 100%; position: absolute; z-index: 1; }
+        #landscape-lock { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); color: var(--neon); z-index: 2000; display: none; align-items: center; justify-content: center; font-weight: 900; text-align: center; }
+        @media (orientation: portrait) { #landscape-lock { display: flex; } #app { display: none; } }
+        .ui-panel { position: absolute; z-index: 10; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid rgba(0, 255, 255, 0.2); border-radius: 12px; display: flex; gap: 6px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); }
+        #toolbar-left { top: 15px; left: 15px; flex-direction: column; padding: 8px; }
+        #toolbar-right { top: 15px; right: 15px; flex-direction: column; padding: 8px; }
+        .btn-icon { width: 44px; height: 44px; border-radius: 10px; border: none; background: rgba(255,255,255,0.05); color: white; font-size: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .btn-icon.active { background: var(--neon); color: black; box-shadow: 0 0 12px var(--neon); }
+        .btn-record { border: 2px solid var(--red); color: var(--red); }
+        .btn-record.active { background: var(--red); color: white; animation: pulse 1.5s infinite; }
+        .logo-slot { position: absolute; top: 15px; width: 45px; height: 45px; border-radius: 50%; border: 1.5px solid var(--neon); z-index: 5; background: var(--glass); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #logo-home { left: 75px; } #logo-away { right: 75px; }
+        .logo-slot img { width: 100%; height: 100%; object-fit: contain; }
+        #config-panel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; background: rgba(10, 15, 25, 0.98); padding: 20px; border-radius: 20px; border: 2px solid var(--neon); display: none; flex-direction: column; gap: 15px; width: 310px; }
+        .config-section { display: flex; flex-direction: column; gap: 8px; font-size: 11px; }
+        .row { display: flex; align-items: center; justify-content: space-between; }
+        .color-picker { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+        .color-dot { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.2); cursor: pointer; }
+        .pattern-btn { flex: 1; padding: 8px; border: 1px solid var(--neon); background: none; color: white; border-radius: 6px; font-size: 10px; font-weight: 900; }
+        .pattern-btn.selected { background: var(--neon); color: black; }
+        #recording-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; display: none; align-items: center; justify-content: center; font-weight: 900; color: var(--neon); }
+        .step-counter { font-size: 10px; font-weight: 900; color: var(--neon); text-align: center; line-height: 1.2; margin: 5px 0; }
+        input[type="range"] { accent-color: var(--neon); width: 100%; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 77, 77, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); } }
+    </style>
+</head>
+<body>
+
+<div id="landscape-lock"><div>⚽ GIRAR MÓVIL A HORIZONTAL<br>NEXUS TACITCAL ELITE</div></div>
+
+<div id="app">
+    <div id="canvas-container"></div>
+    <div id="recording-overlay">NEXUS: EXPORTANDO VÍDEO...</div>
+
+    <div class="logo-slot" id="logo-home" onclick="document.getElementById('in-h').click()"><img id="img-h" src=""><input type="file" id="in-h" hidden onchange="upLogo(event,'img-h')"></div>
+    <div class="logo-slot" id="logo-away" onclick="document.getElementById('in-a').click()"><img id="img-a" src=""><input type="file" id="in-a" hidden onchange="upLogo(event,'img-a')"></div>
+
+    <div class="ui-panel" id="toolbar-left">
+        <button class="btn-icon active" id="btn-select">🖐️</button>
+        <button class="btn-icon" id="btn-pen">✎</button>
+        <button class="btn-icon" id="btn-arrow">↗️</button>
+        <button class="btn-icon" id="btn-rect">🔳</button>
+        <button class="btn-icon" id="btn-spawn" style="color: var(--neon)">👥</button>
+        <button class="btn-icon" id="btn-undo">↩️</button>
+        <button class="btn-icon" id="btn-clear" style="color: var(--red)">🗑️</button>
+    </div>
+
+    <div class="ui-panel" id="toolbar-right">
+        <button class="btn-icon btn-record" id="btn-record">●</button>
+        <button class="btn-icon" id="btn-prev">⏮</button>
+        <button class="btn-icon" id="btn-play" style="font-weight: 900; font-size: 11px;">PLAY</button>
+        <button class="btn-icon" id="btn-next">⏭</button>
+        <div class="step-counter">PASO<br><span id="cur-step">0</span> / <span id="total-step">0</span></div>
+        <button id="btn-export" style="background:#10b981; border:none; color:white; width:44px; height:44px; border-radius:10px; font-weight:bold; font-size:10px;">VÍDEO</button>
+    </div>
+
+    <div id="config-panel">
+        <h3 id="cfg-title" style="margin:0; font-size:14px; color:var(--neon); text-transform:uppercase;">Ajustes</h3>
+        <div id="sec-player" class="config-section">
+            <div class="row">Dorsal: <input type="number" id="input-dorsal" style="width:45px; background:#000; border:1px solid var(--neon); color:white; text-align:center;"></div>
+            <div class="row">Estilo: <button class="pattern-btn" id="pat-solid" onclick="setTeamStyle('solid')">SÓLIDO</button><button class="pattern-btn" id="pat-stripes" onclick="setTeamStyle('stripes')">RAYAS</button></div>
+            <div class="row">Color Base:</div><div class="color-picker" id="pick-c1"></div>
+            <div id="c2-area" style="display:none;"><div class="row">Color Rayas:</div><div class="color-picker" id="pick-c2"></div></div>
+        </div>
+        <div id="sec-drawing" class="config-section" style="border-top:1px solid #333; padding-top:10px;">
+            <div class="row">Grosor: <input type="range" id="draw-width" min="1" max="15" value="4"></div>
+            <div class="row">Trazo:</div>
+            <div style="display:flex; gap:5px;"><button class="pattern-btn" onclick="setLineStyle([])">━━</button><button class="pattern-btn" onclick="setLineStyle([15,10])">---</button><button class="pattern-btn" onclick="setLineStyle([2,8])">...</button></div>
+            <div class="row">Color:</div><div class="color-picker" id="pick-draw"></div>
+        </div>
+        <button onclick="saveClose()" style="background:var(--neon); color:black; font-weight:900; border:none; padding:12px; border-radius:10px; margin-top:5px;">ACEPTAR</button>
+    </div>
+</div>
+
+<script>
+    const stage = new Konva.Stage({ container: 'canvas-container', width: window.innerWidth, height: window.innerHeight });
+    
+    const actionLayer = new Konva.Layer();
+    const drawingGroup = new Konva.Group({ name: 'drawingGroup' });
+    const playerGroup = new Konva.Group({ name: 'playerGroup' });
+    
+    actionLayer.add(drawingGroup, playerGroup);
+    stage.add(actionLayer);
+
+    let currentTool = 'select', isDrawing = false, currentDrawing = null;
+    let savedStates = [], currentStep = 0, selectedPlayer = null, editingTeam = null;
+    let drawColor = '#00ffff', drawDash = [];
+
+    const teamConfigs = {
+        home: { c1: '#ff0000', c2: '#ffffff', pattern: 'solid' },
+        away: { c1: '#0000ff', c2: '#ffffff', pattern: 'solid' }
+    };
+    
+    // Paleta solicitada: Negro, gris, blanco, rojo, verde, azul, naranja, amarillo, morado, azul celeste, rosa, amarillo limon
+    const colors = ['#000000', '#808080', '#ffffff', '#ff0000', '#008000', '#0000ff', '#ffa500', '#ffff00', '#800080', '#87ceeb', '#ffc0cb', '#dfff00'];
+
+    function renderPitch() {
+        let pitch = actionLayer.findOne('#pitchGroup');
+        if (pitch) pitch.destroy();
+        let bg = actionLayer.findOne('#pitchBg');
+        if (bg) bg.destroy();
+
+        const w = stage.width(), h = stage.height();
+        bg = new Konva.Rect({ id: 'pitchBg', x: 0, y: 0, width: w, height: h, fill: '#05070a' });
+        actionLayer.add(bg);
+
+        const pH = h * 0.9, pW = pH * (105/68);
+        const pX = (w - pW)/2, pY = (h - pH)/2;
+        const g = new Konva.Group({ x: pX, y: pY, id: 'pitchGroup', width: pW, height: pH });
+        
+        for(let i=0; i<15; i++) g.add(new Konva.Rect({ x: i*(pW/15), y: 0, width: pW/15, height: pH, fill: i%2===0?'#2d5a27':'#356a2e'}));
+        const s = { stroke: 'rgba(255,255,255,0.5)', strokeWidth: 2.5 };
+        g.add(new Konva.Rect({ width: pW, height: pH, ...s }));
+        g.add(new Konva.Line({ points:[pW/2, 0, pW/2, pH], ...s }));
+        g.add(new Konva.Circle({ x:pW/2, y:pH/2, radius:pH*(9.15/68), ...s }));
+        const boxW = pW*(16.5/105), boxH = pH*(40.3/68), smallW = pW*(5.5/105), smallH = pH*(18.3/68);
+        [0, pW-boxW].forEach(x => g.add(new Konva.Rect({ x, y:(pH-boxH)/2, width:boxW, height:boxH, ...s })));
+        [0, pW-smallW].forEach(x => g.add(new Konva.Rect({ x, y:(pH-smallH)/2, width:smallW, height:smallH, ...s })));
+        g.add(new Konva.Circle({ x:pW*(11/105), y:pH/2, radius:2, fill:'white' }));
+        g.add(new Konva.Circle({ x:pW-pW*(11/105), y:pH/2, radius:2, fill:'white' }));
+        
+        actionLayer.add(g);
+        g.moveToBottom();
+        bg.moveToBottom();
+        actionLayer.draw();
+    }
+
+    function createPlayer(id, team, x, y, num) {
+        const g = new Konva.Group({ x, y, draggable: true, id, name: 'player', team: team });
+        g.add(new Konva.Circle({ radius: 16, fill: 'black', opacity: 0.3, y: 4 })); 
+        const jersey = new Konva.Group({ name: 'jersey' });
+        g.add(jersey); 
+        const text = new Konva.Text({ text: num.toString(), fontSize: 14, fontStyle: '900', x: -16, y: -7, width: 32, align: 'center', listening: false, name: 'dorsal' });
+        g.add(text);
+        updateJersey(g);
+        g.on('dblclick dbltap', () => { selectedPlayer = g; editingTeam = team; openConfig('player'); });
+        return g;
+    }
+
+    function updateJersey(player) {
+        const team = player.getAttr('team'), config = teamConfigs[team], jersey = player.findOne('.jersey');
+        jersey.destroyChildren();
+        
+        // Base Sólida
+        const base = new Konva.Circle({ radius: 16, fill: config.c1, stroke: 'white', strokeWidth: 1.5 });
+        jersey.add(base);
+        
+        // Rayas sobre sólido
+        if(config.pattern === 'stripes') {
+            const stripes = new Konva.Group({ clipFunc: (ctx) => ctx.arc(0,0,16,0,Math.PI*2) });
+            for(let i=-16; i<16; i+=7) stripes.add(new Konva.Rect({ x:i, y:-16, width:3.5, height:32, fill:config.c2 }));
+            jersey.add(stripes);
+        }
+
+        // Lógica Dorsales: Siempre negro, salvo sobre negro -> Rojo
+        const text = player.findOne('.dorsal');
+        if(config.c1 === '#000000') {
+            text.fill('#ff0000');
+        } else {
+            text.fill('#000000');
+        }
+    }
+
+    document.getElementById('btn-spawn').onclick = () => {
+        playerGroup.destroyChildren();
+        const pitch = actionLayer.findOne('#pitchGroup');
+        const pX = pitch.x(), pW = pitch.width(), pH = pitch.height(), pY = pitch.y();
+        const numPerTeam = 11;
+        const spacing = pW / (numPerTeam * 2 + 2);
+        const benchY = pY + pH - 20;
+        for(let i=0; i<numPerTeam; i++) playerGroup.add(createPlayer('h'+i, 'home', pX + spacing * (i+1), benchY, i+1));
+        for(let i=0; i<numPerTeam; i++) playerGroup.add(createPlayer('a'+i, 'away', pX + pW - spacing * (i+1), benchY, i+1));
+        const ball = new Konva.Group({ x: pX + pW/2, y: benchY, draggable: true, id: 'ball', name: 'ball' });
+        ball.add(new Konva.Circle({ radius: 9, fill: 'white', stroke: 'black', strokeWidth: 1 }));
+        ball.add(new Konva.RegularPolygon({ sides: 5, radius: 4, fill: 'black' }));
+        playerGroup.add(ball);
+        actionLayer.draw();
+    };
+
+    document.getElementById('btn-undo').onclick = () => {
+        const drawings = drawingGroup.getChildren();
+        if(drawings.length > 0) { drawings[drawings.length-1].destroy(); actionLayer.draw(); }
+    };
+
+    stage.on('mousedown touchstart', (e) => {
+        if(currentTool === 'select') return;
+        isDrawing = true;
+        const pos = stage.getPointerPosition(), w = parseInt(document.getElementById('draw-width').value);
+        const cfg = { stroke: drawColor, strokeWidth: w, dash: drawDash, name: 'drawing', draggable: false };
+        if(currentTool === 'pen') currentDrawing = new Konva.Line({ ...cfg, points: [pos.x, pos.y], lineCap: 'round', tension: 0.5 });
+        else if(currentTool === 'arrow') currentDrawing = new Konva.Arrow({ ...cfg, fill: drawColor, points: [pos.x, pos.y, pos.x, pos.y], pointerLength: 10, pointerWidth: 10 });
+        else if(currentTool === 'rect') currentDrawing = new Konva.Rect({ ...cfg, x: pos.x, y: pos.y, width: 0, height: 0, fill: hexToRgbA(drawColor, 0.2) });
+        drawingGroup.add(currentDrawing);
+    });
+
+    stage.on('mousemove touchmove', () => {
+        if(!isDrawing) return;
+        const pos = stage.getPointerPosition();
+        if(currentTool === 'pen') currentDrawing.points(currentDrawing.points().concat([pos.x, pos.y]));
+        else if(currentTool === 'arrow') currentDrawing.points([currentDrawing.points()[0], currentDrawing.points()[1], pos.x, pos.y]);
+        else if(currentTool === 'rect') { currentDrawing.width(pos.x - currentDrawing.x()); currentDrawing.height(pos.y - currentDrawing.y()); }
+        actionLayer.batchDraw();
+    });
+
+    stage.on('mouseup touchend', () => { if(isDrawing) { isDrawing = false; setTool('select'); } });
+
+    function setTool(t) {
+        currentTool = t;
+        document.querySelectorAll('.btn-icon').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-'+t).classList.add('active');
+        const isSelect = t === 'select';
+        playerGroup.getChildren().forEach(p => p.draggable(isSelect));
+        drawingGroup.getChildren().forEach(d => d.draggable(isSelect));
+        if(!isSelect) openConfig('drawing');
+        actionLayer.draw();
+    }
+
+    const toolBtns = { 'btn-select':'select', 'btn-pen':'pen', 'btn-arrow':'arrow', 'btn-rect':'rect' };
+    Object.keys(toolBtns).forEach(id => document.getElementById(id).onclick = () => setTool(toolBtns[id]));
+
+    function openConfig(type) {
+        document.getElementById('config-panel').style.display = 'flex';
+        document.getElementById('sec-player').style.display = type === 'player' ? 'flex' : 'none';
+        document.getElementById('sec-drawing').style.display = type === 'drawing' ? 'flex' : 'none';
+        if(type === 'player') {
+            const config = teamConfigs[editingTeam];
+            document.getElementById('cfg-title').innerText = editingTeam === 'home' ? 'Local' : 'Visitante';
+            document.getElementById('input-dorsal').value = selectedPlayer.findOne('Text').text();
+            document.getElementById('c2-area').style.display = config.pattern === 'stripes' ? 'block' : 'none';
+        }
+    }
+
+    function buildPickers() {
+        const p1 = document.getElementById('pick-c1'), p2 = document.getElementById('pick-c2'), pd = document.getElementById('pick-draw');
+        colors.forEach(c => {
+            const d1 = document.createElement('div'); d1.className='color-dot'; d1.style.background=c; d1.onclick=()=>{teamConfigs[editingTeam].c1=c;updateAll();}; p1.appendChild(d1);
+            const d2 = document.createElement('div'); d2.className='color-dot'; d2.style.background=c; d2.onclick=()=>{teamConfigs[editingTeam].c2=c;updateAll();}; p2.appendChild(d2);
+            const dd = document.createElement('div'); dd.className='color-dot'; dd.style.background=c; dd.onclick=()=>{drawColor=c;}; pd.appendChild(dd);
+        });
+    }
+
+    function updateAll() { playerGroup.getChildren().forEach(pl => { if(pl.getAttr('team') === editingTeam) updateJersey(pl); }); actionLayer.draw(); }
+    function setTeamStyle(p) { teamConfigs[editingTeam].pattern = p; openConfig('player'); updateAll(); }
+    function setLineStyle(d) { drawDash = d; }
+    function saveClose() { if(selectedPlayer) selectedPlayer.findOne('Text').text(document.getElementById('input-dorsal').value); document.getElementById('config-panel').style.display = 'none'; actionLayer.draw(); }
+
+    document.getElementById('btn-record').onclick = () => {
+        const s = { players: [], ball: null };
+        playerGroup.find('.player').forEach(p => s.players.push({ id: p.id(), x: p.x(), y: p.y() }));
+        const b = playerGroup.findOne('#ball'); if(b) s.ball = { x: b.x(), y: b.y() };
+        savedStates.push(s); currentStep = savedStates.length - 1; updateTimeline();
+    };
+
+    async function play() {
+        if(savedStates.length < 2) return;
+        for(let i=0; i<savedStates.length; i++) {
+            currentStep = i; updateTimeline();
+            const anims = savedStates[i].players.map(d => {
+                const p = playerGroup.findOne('#'+d.id);
+                return new Promise(res => new Konva.Tween({ node:p, duration:0.6, x:d.x, y:d.y, easing:Konva.Easings.EaseInOut, onFinish:res }).play());
+            });
+            if(savedStates[i].ball) {
+                const b = playerGroup.findOne('#ball');
+                anims.push(new Promise(res => new Konva.Tween({ node:b, duration:0.6, x:savedStates[i].ball.x, y:savedStates[i].ball.y, easing:Konva.Easings.EaseInOut, onFinish:res }).play()));
+            }
+            await Promise.all(anims);
+        }
+    }
+    
+    document.getElementById('btn-play').onclick = play;
+    document.getElementById('btn-prev').onclick = () => { if(currentStep > 0) applyState(--currentStep); };
+    document.getElementById('btn-next').onclick = () => { if(currentStep < savedStates.length - 1) applyState(++currentStep); };
+    
+    function applyState(idx) {
+        savedStates[idx].players.forEach(d => playerGroup.findOne('#'+d.id)?.position({x:d.x, y:d.y}));
+        if(savedStates[idx].ball) playerGroup.findOne('#ball')?.position({x:savedStates[idx].ball.x, y:savedStates[idx].ball.y});
+        updateTimeline(); actionLayer.draw();
+    }
+    
+    function updateTimeline() { document.getElementById('cur-step').innerText = savedStates.length > 0 ? currentStep+1 : 0; document.getElementById('total-step').innerText = savedStates.length; }
+
+    function hexToRgbA(hex, alpha){ let c; if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){ c= hex.substring(1).split(''); if(c.length==3){ c= [c[0], c[0], c[1], c[1], c[2], c[2]]; } c= '0x'+c.join(''); return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')'; } return 'white'; }
+    function upLogo(e, id) { const file = e.target.files[0]; if(file){ const reader = new FileReader(); reader.onload = (f) => document.getElementById(id).src = f.target.result; reader.readAsDataURL(file); } }
+
+    // --- MOTOR DE EXPORTACIÓN REPARADO ---
+    document.getElementById('btn-export').onclick = async () => {
+        if(savedStates.length < 2) return;
+        document.getElementById('recording-overlay').style.display = 'flex';
+        
+        // Usamos el canvas de Konva directamente para capturar el stream
+        const canvas = actionLayer.getNativeCanvasElement();
+        const stream = canvas.captureStream(30); // 30 FPS
+
+        const rec = new MediaRecorder(stream, { 
+            mimeType: 'video/webm;codecs=vp9',
+            videoBitsPerSecond: 5000000 
+        });
+        
+        const chunks = [];
+        rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        
+        rec.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pizarra_tactica_nexus.webm';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.getElementById('recording-overlay').style.display = 'none';
+        };
+
+        rec.start();
+        await play(); // Ejecutamos la animación mientras se graba
+        
+        // Esperamos un momento tras terminar para que el último frame se procese
+        setTimeout(() => {
+            rec.stop();
+        }, 1000);
+    };
+
+    document.getElementById('btn-clear').onclick = () => { actionLayer.find('.player').forEach(p=>p.destroy()); drawingGroup.destroyChildren(); savedStates = []; updateTimeline(); actionLayer.draw(); };
+
+    window.onresize = () => { stage.width(window.innerWidth); stage.height(window.innerHeight); renderPitch(); };
+    buildPickers(); renderPitch();
+</script>
+</body>
+</html>
